@@ -5,6 +5,35 @@
 #include <stdio.h>
 #include <unistd.h>
 
+// Design protocol, and version it for backwards compatibility
+
+typedef enum
+{
+    PROTO_HELLO,
+} proto_type_e;
+
+// TLV - Type, Length, Value
+typedef struct
+{
+    proto_type_e type;
+    unsigned short len;
+} proto_hdr_t;
+
+void handle_Client(int fd)
+{
+    char buf[4096] = {0};
+    proto_hdr_t *hdr = buf;
+    hdr->type = htonl(PROTO_HELLO);
+    hdr->len = sizeof(int);
+    int reallen = hdr->len;
+    hdr->len = htons(hdr->len);
+
+    int *data = (int *)&hdr[1];
+    *data = htonl(1);
+
+    write(fd, hdr, sizeof(proto_hdr_t) + reallen);
+}
+
 int main()
 {
     // endianess
@@ -61,17 +90,22 @@ int main()
     }
 
     // accept
-    int clientFd;
-    clientFd = accept(fd, (struct sockaddr *)&clientInfo, &clientSize);
-    if (clientFd < 0)
-    {
-        perror("accept");
-        close(fd);
-        return -1;
-    }
 
-    close(clientFd);
-    close(fd);
+    while (1)
+    {
+        int clientFd;
+        clientFd = accept(fd, (struct sockaddr *)&clientInfo, &clientSize);
+        if (clientFd < 0)
+        {
+            perror("accept");
+            close(fd);
+            return -1;
+        }
+
+        handle_Client(clientFd);
+
+        close(clientFd);
+    }
 
     return 0;
 }
